@@ -1,0 +1,6 @@
+{
+  "name": "L'IA décodée — Guide du manager",
+  "description": "Un guide pédagogique et interactif pour comprendre l'IA dans l'assurance sans jargon ni blabla. Métaphores, exemples concrets, quiz et glossaire dynamique.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
