@@ -5,6 +5,7 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    base: '/mmia4/Guide/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
