@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Manager : Phaser Engine Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <!-- Importation du moteur Phaser.js depuis le CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+    
+    <style>
+        :root {
+            --perf: #FACC15;
+            --mental: #EF4444;
+            --lit: #3B82F6;
+            --gov: #10B981;
+        }
+
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #0f172a;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* HEADER (Jauges) */
+        .header {
+            width: 100%;
+            max-width: 800px;
+            background: #1e293b;
+            border-bottom: 4px solid #000;
+            padding: 15px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        .gauges-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 10px;
+        }
+
+        .gauge-container { display: flex; flex-direction: column; gap: 5px; }
+        .gauge-label { font-size: 8px; color: #cbd5e1; }
+        .gauge-bar-bg { width: 100%; height: 12px; background: #000; border: 2px solid #475569; position: relative; }
+        .gauge-bar-fill { height: 100%; width: 50%; transition: width 0.3s; }
+
+        #bar-perf { background-color: var(--perf); }
+        #bar-mental { background-color: var(--mental); }
+        #bar-lit { background-color: var(--lit); }
+        #bar-gov { background-color: var(--gov); }
+
+        /* CONTENEUR DU MOTEUR PHASER */
+        #game-wrapper {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            margin-top: 20px;
+            border: 4px solid #000;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            background-color: #87CEEB;
+            /* Le Canvas Phaser sera transparent au-dessus de cette image */
+            background-image: url('file:///C:/Users/FloLoulou/.gemini/antigravity/brain/7fefdbd2-ac5c-403c-ae2a-e2ee80c117b7/village_good_1778259704587.png');
+            background-size: cover;
+            background-position: center bottom;
+            image-rendering: pixelated;
+            transition: background-image 1s;
+        }
+
+        #game-wrapper.bad-state {
+            background-image: url('file:///C:/Users/FloLoulou/.gemini/antigravity/brain/7fefdbd2-ac5c-403c-ae2a-e2ee80c117b7/village_bad_1778259717882.png');
+        }
+
+        #game-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* UI JRPG - BOÎTE DE DIALOGUE HTML (Plus simple à styliser que le texte Phaser) */
+        #dialogue-box {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+            border: 4px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.8), 6px 6px 0px rgba(0,0,0,0.6);
+            padding: 20px;
+            box-sizing: border-box;
+            display: none;
+            z-index: 100;
+        }
+
+        #dialogue-box.active { display: block; }
+
+        .speaker-name { color: #facc15; font-size: 14px; margin-bottom: 15px; text-shadow: 2px 2px #000; }
+        .dialogue-text { font-size: 12px; line-height: 1.8; text-shadow: 1px 1px #000; min-height: 40px; margin-bottom: 15px; }
+        .dialogue-options { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+        
+        .dialogue-options button {
+            font-family: 'Press Start 2P', cursive;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: 2px solid #94a3b8;
+            padding: 10px;
+            font-size: 10px;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        .dialogue-options button:hover {
+            background: rgba(59, 130, 246, 0.5);
+            border-color: #60a5fa;
+        }
+
+        .hint {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 10px;
+            color: #fff;
+            text-shadow: 1px 1px #000;
+            background: rgba(0,0,0,0.5);
+            padding: 5px;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="gauges-grid">
+            <div class="gauge-container"><div class="gauge-label">Perf</div><div class="gauge-bar-bg"><div class="gauge-bar-fill" id="bar-perf"></div></div></div>
+            <div class="gauge-container"><div class="gauge-label">Santé</div><div class="gauge-bar-bg"><div class="gauge-bar-fill" id="bar-mental"></div></div></div>
+            <div class="gauge-container"><div class="gauge-label">Litté</div><div class="gauge-bar-bg"><div class="gauge-bar-fill" id="bar-lit"></div></div></div>
+            <div class="gauge-container"><div class="gauge-label">Gouv</div><div class="gauge-bar-bg"><div class="gauge-bar-fill" id="bar-gov"></div></div></div>
+        </div>
+    </div>
+
+    <div id="game-wrapper">
+        <div class="hint">FLÈCHES pour bouger. ESPACE pour parler. Propulsé par Phaser.js</div>
+        <div id="game-container"></div>
+        
+        <div id="dialogue-box">
+            <div class="speaker-name" id="d-name">Nom</div>
+            <div class="dialogue-text" id="d-text">Texte...</div>
+            <div class="dialogue-options" id="d-options"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- ÉTAT GLOBAL ---
+        let rpgState = { perf: 50, mental: 50, lit: 30, gov: 60 };
+        let currentGameState = "PLAYING"; 
+        
+        // --- DONNÉES DES PNJ ---
+        const npcDataList = [
+            {
+                id: 'roi', emoji: '👑', x: 200, y: 200,
+                name: 'Le Héraut du Roi',
+                completed: false,
+                text: "Par décret royal ! Les Golems (IA) doivent remplacer les ouvriers aux champs !",
+                options: [
+                    { text: "Obéir (Forcer l'outil)", impact: { perf: 15, mental: -30, lit: 0, gov: 0 }, reply: "Le Roi est satisfait. Le village est en grève." },
+                    { text: "Désobéir et consulter le conseil (Sensemaking)", impact: { perf: -5, mental: 15, lit: 10, gov: 5 }, reply: "Le Roi s'impatiente, mais le village reste soudé." }
+                ]
+            },
+            {
+                id: 'herboriste', emoji: '🧙‍♀️', x: 650, y: 300,
+                name: 'Julie l\'Herboriste',
+                completed: false,
+                text: "Regardez ! L'Oracle de l'Ombre m'a donné cette recette. C'est magique !",
+                options: [
+                    { text: "Laisser faire (Shadow IT)", impact: { perf: 10, mental: 0, lit: 0, gov: -35 }, reply: "L'Oracle était un espion. Nos secrets sont volés !" },
+                    { text: "Lui donner un Oracle Officiel (Licence)", impact: { perf: 5, mental: 10, lit: 20, gov: 10 }, reply: "Elle forme maintenant les autres apprentis. Bravo !" }
+                ]
+            },
+            {
+                id: 'meunier', emoji: '👨‍🌾', x: 400, y: 500,
+                name: 'Le Meunier',
+                completed: false,
+                text: "Le Golem de tri a jeté ma récolte ! Il délire complètement !",
+                options: [
+                    { text: "Le Golem a raison (Automation Bias)", impact: { perf: 10, mental: -15, lit: -10, gov: -30 }, reply: "Le Golem avait halluciné. La récolte est perdue." },
+                    { text: "Auditer le Golem (Accountability)", impact: { perf: -15, mental: 10, lit: 15, gov: 20 }, reply: "Le Golem avait un bug. Le meunier vous remercie." }
+                ]
+            }
+        ];
+
+        // --- MOTEUR PHASER ---
+        const config = {
+            type: Phaser.AUTO,
+            width: 800,
+            height: 600,
+            parent: 'game-container',
+            transparent: true, // Permet de voir l'image HTML derrière le canvas
+            physics: {
+                default: 'arcade',
+                arcade: { debug: false }
+            },
+            scene: {
+                create: create,
+                update: update
+            }
+        };
+
+        const game = new Phaser.Game(config);
+        
+        let player;
+        let cursors;
+        let spaceKey;
+        let npcsGroup;
+        let activeNpcObj = null;
+
+        function create() {
+            // Joueur (Physique activée)
+            player = this.add.text(400, 300, '🧙‍♂️', { fontSize: '48px' }).setOrigin(0.5, 0.5);
+            this.physics.add.existing(player);
+            player.body.setCollideWorldBounds(true);
+            player.body.setSize(40, 40);
+
+            // Groupe PNJ
+            npcsGroup = this.physics.add.staticGroup();
+
+            npcDataList.forEach(data => {
+                let npcText = this.add.text(data.x, data.y, data.emoji, { fontSize: '48px' }).setOrigin(0.5, 0.5);
+                this.physics.add.existing(npcText, true); // true = static body
+                
+                // Marqueur de quête
+                npcText.marker = this.add.text(data.x, data.y - 40, '!', { fontSize: '24px', color: '#facc15' }).setOrigin(0.5, 0.5);
+                
+                // Animation de rebond du marqueur (Tweens Phaser)
+                this.tweens.add({
+                    targets: npcText.marker,
+                    y: data.y - 50,
+                    duration: 500,
+                    yoyo: true,
+                    repeat: -1,
+                    ease: 'Sine.easeInOut'
+                });
+
+                npcText.dataRef = data;
+                npcsGroup.add(npcText);
+            });
+
+            // Empêcher le joueur de traverser les PNJs
+            this.physics.add.collider(player, npcsGroup);
+
+            cursors = this.input.keyboard.createCursorKeys();
+            spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+        }
+
+        function update() {
+            if (currentGameState !== 'PLAYING') {
+                player.body.setVelocity(0); // Stopper le joueur pendant le dialogue
+                return;
+            }
+
+            // Gestion des mouvements avec la vélocité physique de Phaser
+            const speed = 250;
+            let vx = 0;
+            let vy = 0;
+
+            if (cursors.left.isDown) vx = -speed;
+            else if (cursors.right.isDown) vx = speed;
+
+            if (cursors.up.isDown) vy = -speed;
+            else if (cursors.down.isDown) vy = speed;
+
+            // Normalisation pour les diagonales
+            if (vx !== 0 && vy !== 0) {
+                vx *= 0.707;
+                vy *= 0.707;
+            }
+
+            player.body.setVelocity(vx, vy);
+
+            // Petit effet d'oscillation lors de la marche
+            if (vx !== 0 || vy !== 0) {
+                player.angle = Math.sin(this.time.now / 100) * 10;
+            } else {
+                player.angle = 0;
+            }
+
+            // Interaction
+            if (Phaser.Input.Keyboard.JustDown(spaceKey)) {
+                checkInteraction();
+            }
+        }
+
+        function checkInteraction() {
+            let closest = null;
+            let minDist = 80; // Distance max pour interagir
+
+            npcsGroup.getChildren().forEach(npc => {
+                if(npc.dataRef.completed) return;
+                let dist = Phaser.Math.Distance.Between(player.x, player.y, npc.x, npc.y);
+                if (dist < minDist) {
+                    closest = npc;
+                    minDist = dist;
+                }
+            });
+
+            if (closest) {
+                startDialogue(closest);
+            }
+        }
+
+        // --- GESTION DES DIALOGUES VIA HTML ---
+        function startDialogue(npcObj) {
+            currentGameState = "DIALOGUE";
+            activeNpcObj = npcObj;
+            let data = npcObj.dataRef;
+            
+            document.getElementById('d-name').innerText = data.name;
+            document.getElementById('d-text').innerText = data.text;
+            
+            const optionsContainer = document.getElementById('d-options');
+            optionsContainer.innerHTML = '';
+
+            data.options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.innerText = "► " + opt.text;
+                btn.onclick = () => makeChoice(data, opt);
+                optionsContainer.appendChild(btn);
+            });
+
+            document.getElementById('dialogue-box').classList.add('active');
+        }
+
+        function makeChoice(data, option) {
+            // Impact
+            rpgState.perf += option.impact.perf;
+            rpgState.mental += option.impact.mental;
+            rpgState.lit += option.impact.lit;
+            rpgState.gov += option.impact.gov;
+            updateUI();
+
+            // Résultat
+            document.getElementById('d-options').innerHTML = '';
+            document.getElementById('d-text').innerText = option.reply;
+            
+            const closeBtn = document.createElement('button');
+            closeBtn.innerText = "Quitter (Espace)";
+            closeBtn.onclick = () => endDialogue();
+            document.getElementById('d-options').appendChild(closeBtn);
+
+            // Raccourci espace pour quitter
+            const spaceListener = (e) => {
+                if(e.key === ' ') {
+                    window.removeEventListener('keydown', spaceListener);
+                    endDialogue();
+                }
+            };
+            setTimeout(() => window.addEventListener('keydown', spaceListener), 100);
+        }
+
+        function endDialogue() {
+            activeNpcObj.dataRef.completed = true;
+            activeNpcObj.marker.destroy(); // Supprimer le point d'exclamation
+            activeNpcObj.setAlpha(0.5); // Griser le PNJ
+            
+            document.getElementById('dialogue-box').classList.remove('active');
+            setTimeout(() => { currentGameState = "PLAYING"; }, 200);
+        }
+
+        function updateUI() {
+            const clamp = (val) => Math.max(0, Math.min(100, val));
+            rpgState.perf = clamp(rpgState.perf);
+            rpgState.mental = clamp(rpgState.mental);
+            rpgState.lit = clamp(rpgState.lit);
+            rpgState.gov = clamp(rpgState.gov);
+
+            document.getElementById('bar-perf').style.width = rpgState.perf + '%';
+            document.getElementById('bar-mental').style.width = rpgState.mental + '%';
+            document.getElementById('bar-lit').style.width = rpgState.lit + '%';
+            document.getElementById('bar-gov').style.width = rpgState.gov + '%';
+
+            const isBadState = (rpgState.perf <= 25 || rpgState.mental <= 25 || rpgState.gov <= 25 || rpgState.lit <= 25);
+            if (isBadState) {
+                document.getElementById('game-wrapper').classList.add('bad-state');
+            } else {
+                document.getElementById('game-wrapper').classList.remove('bad-state');
+            }
+        }
+
+        // Init UI
+        updateUI();
+
+    </script>
+</body>
+</html>

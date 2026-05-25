@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Matrice de Priorisation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+        
+        #bg-canvas { position: fixed; top: 0; right: 0; width: 60%; height: 100vh; z-index: -2; pointer-events: none; }
+        #canvas-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to right, var(--bg) 50%, rgba(2,6,23,0.5) 100%); z-index: -1; pointer-events: none; }
+        
+        :root {
+            --bg: #020617;
+            --accent: #38bdf8;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: #e2e8f0;
+            font-family: 'Outfit', sans-serif;
+            margin: 0;
+            line-height: 1.6;
+            scroll-behavior: smooth;
+        }
+
+        .glass-container {
+            background: rgba(2, 6, 23, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(56, 189, 248, 0.15);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        /* Markdown Styling */
+        #content h1 { font-size: 2.5rem; font-weight: 700; color: #fff; margin-bottom: 1.5rem; border-bottom: 2px solid var(--accent); padding-bottom: 0.5rem; }
+        #content h2 { font-size: 1.8rem; font-weight: 600; color: #bae6fd; margin-top: 3rem; margin-bottom: 1.5rem; scroll-margin-top: 2rem; }
+        #content h3 { font-size: 1.4rem; font-weight: 600; color: #7dd3fc; margin-top: 2.5rem; margin-bottom: 1rem; scroll-margin-top: 2rem; }
+        #content p { margin-bottom: 1.5rem; font-size: 1.05rem; }
+        #content ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1.5rem; }
+        #content ol { list-style-type: decimal; margin-left: 1.5rem; margin-bottom: 1.5rem; }
+        #content li { margin-bottom: 0.75rem; }
+        #content li::marker { color: var(--accent); }
+        #content strong { color: #fff; font-weight: 600; }
+        #content blockquote { border-left: 4px solid var(--accent); padding: 1rem 1.5rem; color: #cbd5e1; font-style: italic; margin-bottom: 1.5rem; background: rgba(255,255,255,0.02); }
+        #content blockquote:hover { border-left-color: #bae6fd; background: rgba(56, 189, 248, 0.05); }
+        #content code { background: rgba(56, 189, 248, 0.1); color: #bae6fd; padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; border: 1px solid rgba(56, 189, 248, 0.2); }
+        #content table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; background: rgba(255,255,255,0.02); border-radius: 0.5rem; overflow: hidden; display: block; overflow-x: auto; }
+        #content table:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+        #content th, #content td { border-bottom: 1px solid rgba(255, 255, 255, 0.1); padding: 1rem; text-align: left; }
+        #content th { background: rgba(56, 189, 248, 0.1); color: #fff; font-weight: 600; text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.05em; }
+        #content tr:last-child td { border-bottom: none; }
+        #content tr:hover td { background: rgba(255, 255, 255, 0.05); }
+
+        /* TOC Styling */
+        #toc a { display: block; padding: 0.25rem 0; color: #94a3b8; text-decoration: none; transition: all 0.2s ease; border-left: 2px solid transparent; padding-left: 0.75rem; }
+        #toc a:hover { color: #fff; border-left-color: var(--accent); background: rgba(56, 189, 248, 0.05); }
+        #toc a.active { color: var(--accent); border-left-color: var(--accent); font-weight: 600; }
+        #toc .toc-h3 { margin-left: 1rem; font-size: 0.9em; }
+        
+        .fade-in-section { opacity: 0; transform: translateY(20px); transition: opacity 0.6s ease-out, transform 0.6s ease-out; will-change: opacity, visibility; }
+        .fade-in-section.is-visible { opacity: 1; transform: none; }
+    </style>
+</head>
+<body class="min-h-screen py-12 px-4 sm:px-8 lg:px-16 relative">
+    <div id="canvas-overlay"></div>
+    <canvas id="bg-canvas"></canvas>
+    <div id="progress-bar" class="fixed top-0 left-0 h-1 bg-sky-400 z-50 transition-all duration-150" style="width: 0%"></div>
+
+    <div class="max-w-7xl mx-auto flex flex-col lg:flex-row gap-8 items-start relative">
+        <!-- Sidebar TOC -->
+        <aside class="lg:w-1/4 hidden lg:block sticky top-12 self-start">
+            <div class="glass-container p-6 rounded-2xl max-h-[85vh] overflow-y-auto">
+                <a href="ia-management-experience.html#tools" class="inline-flex items-center gap-2 text-sky-400 hover:text-white transition-colors mb-8 group border-b border-white/10 pb-4 w-full">
+                    <span class="group-hover:-translate-x-1 transition-transform">←</span>
+                    <span class="font-semibold uppercase tracking-wider text-xs">Retour au site</span>
+                </a>
+                <h4 class="text-sky-400 font-bold mb-4 uppercase tracking-wider text-sm flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path></svg>
+                    Sommaire
+                </h4>
+                <ul id="toc" class="space-y-1 text-sm"></ul>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="lg:w-3/4 w-full">
+            <a href="ia-management-experience.html#tools" class="lg:hidden inline-flex items-center gap-2 text-sky-400 hover:text-white transition-colors mb-8 group">
+                <span class="group-hover:-translate-x-1 transition-transform">←</span>
+                <span class="font-semibold uppercase tracking-wider text-sm">Retour à l'expérience</span>
+            </a>
+            
+            <div class="glass-container p-8 sm:p-12 lg:p-16 rounded-3xl relative">
+                <div id="content"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Injecting Markdown Data Safely -->
+    <script type="text/markdown" id="md-data">
+# La Matrice de Priorisation IA : Choisir les Bons Cas d'Usage
+
+L'un des plus grands défis pour le manager est de savoir **par quoi commencer**. La tentation est forte de vouloir tout automatiser d'un coup, ou à l'inverse, de viser un cas d'usage si complexe qu'il n'aboutira jamais. 
+
+Cette matrice, inspirée des cadres de *Gartner* et de *McKinsey*, permet au manager de classer méthodiquement les idées d'automatisation de son équipe et de lancer les bons projets au bon moment.
+
+---
+
+## 1. Les 3 Niveaux d'Ambition IA
+
+Avant de lancer un projet, qualifiez sa nature :
+
+1. **Everyday AI (IA du Quotidien) :** 
+   - *But :* Améliorer la productivité sur des tâches routinières. Faible risque.
+   - *Exemples en assurance :* Résumer une longue chaîne de mails avec un courtier, rédiger le premier jet d'un compte-rendu de réunion, trier les e-mails entrants par urgence.
+2. **Boundary-pushing AI (IA Repoussant les Limites) :** 
+   - *But :* Optimiser les opérations à grande échelle.
+   - *Exemples en assurance :* Un assistant IA interne qui analyse l'ensemble des conditions générales pour répondre instantanément aux questions des clients sur leurs garanties. Détection automatisée de doublons ou d'incohérences dans les déclarations de sinistres.
+3. **Game-changing AI (IA Transformatrice) :** 
+   - *But :* Disrupter le modèle d'affaires. Haut risque, haut rendement.
+   - *Exemples en assurance :* Tarification dynamique et personnalisée des risques en temps réel basée sur des données non structurées. Souscription automatisée de contrats simples sans intervention humaine.
+
+> **💡 Conseil au Manager :** Commencez toujours par 2 ou 3 projets "Everyday AI" pour créer des "Quick Wins" (victoires rapides) et bâtir la confiance de l'équipe avant de viser plus haut.
+
+---
+
+## 2. Raisonner en "Workflows de bout en bout"
+
+**Erreur fréquente :** Automatiser une tâche isolée (ex: "générer un mail de réponse") sans repenser le workflow complet. McKinsey recommande de cartographier le processus de bout en bout, puis d'identifier les points où l'IA crée le plus de valeur.
+
+**Exemple : Le Workflow de Gestion d'un Sinistre MRH**
+
+| Étape du workflow | Tâche actuelle (manuelle) | Potentiel IA | Niveau |
+|---|---|---|---|
+| 1. Réception de la déclaration | Tri manuel des mails, saisie des informations dans le SI | Extraction automatique des données du mail et pré-remplissage du formulaire | Everyday |
+| 2. Analyse du rapport d'expertise | Lecture d'un PDF de 15 pages, rédaction d'une fiche synthétique | Résumé automatique du rapport en 5 bullet points clés | Everyday |
+| 3. Vérification des garanties | Consultation manuelle des CGV et du contrat de l'assuré | Assistant IA interrogeant la base documentaire des contrats | Boundary-pushing |
+| 4. Chiffrage de l'indemnisation | Calcul manuel basé sur les barèmes et l'expertise | Suggestion de fourchette d'indemnisation basée sur les dossiers similaires | Game-changing |
+| 5. Communication avec l'assuré | Rédaction manuelle de chaque courrier/mail de suivi | Génération de brouillons de courriers personnalisés et empathiques | Everyday |
+| 6. Clôture et archivage | Saisie manuelle du bilan dans le SI | Compte-rendu automatique et classement intelligent | Everyday |
+
+```mermaid
+journey
+    title Parcours du Sinistre : Opportunités IA
+    section 1. Déclaration
+      Tri Mail et Saisie: 2: IA (Everyday)
+    section 2. Analyse
+      Résumé Expertise: 4: IA (Everyday)
+      Vérif Garanties: 5: IA (Boundary)
+    section 3. Décision
+      Chiffrage: 7: IA (Game-changing)
+    section 4. Finalisation
+      Courrier Assuré: 3: IA (Everyday)
+      Archivage: 1: IA (Everyday)
+```
+
+> **💡 Ce tableau montre que sur 6 étapes, 4 sont des "Everyday AI" à faible risque.** C'est par elles qu'il faut commencer pour libérer du temps sur les étapes 3 et 4, qui nécessitent une expertise métier forte et un cadrage éthique (cf. *Checklist des Feux Verts*).
+
+---
+
+## 3. L'Outil de Scoring des Cas d'Usage
+
+Pour chaque idée proposée par votre équipe (les fameux "Micro-bets" ou micro-paris), évaluez-la sur 3 critères (de 1 à 5) :
+
+### Critère A : Faisabilité Technique & Data
+| Score | Description |
+|---|---|
+| 1 | Données inexistantes, silotées, ou IA non adaptée au besoin. |
+| 2 | Données partiellement disponibles, nécessitent un travail de nettoyage important. |
+| 3 | Données disponibles mais non connectées à l'outil d'IA. Intégration nécessaire avec l'IT. |
+| 4 | Données propres et accessibles. Un outil d'IA existant peut être utilisé avec un paramétrage léger. |
+| 5 | Données propres, structurées. L'outil d'IA générative interne est déjà disponible et formé sur ce type de tâche. |
+
+### Critère B : Tolérance au Risque & Conformité
+| Score | Description |
+|---|---|
+| 1 | Risque critique : décision impactant directement l'assuré (refus de garantie, tarification), données de santé, risque d'hallucination grave. |
+| 2 | Risque élevé : données personnelles identifiables (DPI) impliquées, sortie IA directement visible par le client sans relecture. |
+| 3 | Risque modéré : données internes sensibles (chiffre d'affaires, stratégie), nécessite une validation humaine systématique. |
+| 4 | Risque faible : données anonymisées ou agrégées, usage purement interne avec relecture. |
+| 5 | Risque nul : synthèse de documents publics, automatisation d'une tâche administrative sans impact client ni donnée sensible. |
+
+### Critère C : Impact Métier & Humain
+| Score | Description |
+|---|---|
+| 1 | Faible gain de temps, tâche très rare (ex: moins d'une fois par mois). |
+| 2 | Gain marginal, la tâche est déjà relativement fluide manuellement. |
+| 3 | Gain modéré : environ 30 min économisées par jour, ou réduction d'un irritant mineur. |
+| 4 | Gain significatif : 1h+ économisée par jour, ou suppression d'un irritant reconnu par toute l'équipe. |
+| 5 | Gain massif : 2h+ sauvées par jour et par collaborateur, ET réduction d'une tâche perçue comme un "irritant majeur" par l'équipe, ET libération de temps pour des activités à haute valeur ajoutée (relation client, conseil). |
+
+---
+
+## 4. Grille de Scoring Pré-remplie (Exemples Assurance)
+
+Utilisez ce tableau comme modèle lors de vos ateliers de priorisation :
+
+| Cas d'usage proposé | A (Faisabilité) | B (Risque) | C (Impact) | **Total** | **Verdict** |
+|---|:---:|:---:|:---:|:---:|---|
+| Résumé automatique des rapports d'expertise sinistres | 4 | 4 | 5 | **13** | 🟢 Go immédiat |
+| Brouillon de mails de suivi pour les assurés | 5 | 4 | 4 | **13** | 🟢 Go immédiat |
+| Tri et classement automatique des mails entrants | 4 | 5 | 4 | **13** | 🟢 Go immédiat |
+| Compte-rendu automatique des réunions d'équipe | 5 | 5 | 3 | **13** | 🟢 Go immédiat |
+| FAQ intelligente sur les garanties des contrats | 3 | 3 | 4 | **10** | 🟡 À planifier |
+| Détection de fraude par analyse de texte des déclarations | 2 | 2 | 5 | **9** | 🟡 À planifier |
+| Aide à la souscription automatisée (scoring de risque) | 2 | 1 | 5 | **8** | 🟡 À planifier |
+| Tarification dynamique temps réel | 1 | 1 | 5 | **7** | 🔴 Faux ami |
+| Décision automatisée de refus de garantie | 1 | 1 | 3 | **5** | 🔴 Faux ami |
+
+---
+
+## 5. Matrice de Décision
+
+Additionnez vos scores A + B + C (sur 15) :
+
+### 🟢 Score entre 12 et 15 — Les "Feux Verts"
+**Go immédiat.** Ce sont vos projets de type *Everyday AI*. Lancez-les en "Micro-bets" de 10 jours. C'est ici que votre équipe va s'acculturer et prendre confiance. Pas besoin de validation IT lourde.
+
+### 🟡 Score entre 8 et 11 — Les "Stratégiques"
+**À planifier.** Le gain est fort mais le risque ou la complexité nécessitent l'appui de l'IT, du service conformité, et/ou du DPO (Délégué à la Protection des Données). Prévoyez un POC (Proof of Concept) encadré de 1 à 3 mois.
+
+### 🔴 Score inférieur à 8 — Les "Faux Amis"
+**À écarter pour l'instant.** L'effort d'intégration est trop lourd par rapport au bénéfice, ou le risque éthique/réglementaire est trop élevé. Ne gaspillez pas le capital confiance de votre équipe sur ces sujets. Ils pourront être réévalués dans 6 à 12 mois quand la maturité IA de l'entreprise aura progressé.
+
+```mermaid
+quadrantChart
+    title Priorisation des Cas d'Usage
+    x-axis Faisabilité technique --> Complexe
+    y-axis Faible Impact --> Fort Impact
+    quadrant-1 "À planifier (POC)"
+    quadrant-2 "Go immédiat (Everyday AI)"
+    quadrant-3 "Faux Amis (À écarter)"
+    quadrant-4 "Gains Marginaux"
+    "Synthèse Expertise": [0.2, 0.9]
+    "Brouillon de Mail": [0.1, 0.7]
+    "Tarification temps réel": [0.9, 0.8]
+    "Décision refus automatique": [0.85, 0.4]
+    "FAQ conditions générales": [0.5, 0.6]
+```
+
+---
+
+## 6. Comment Animer un Atelier de Priorisation avec son Équipe
+
+**Durée :** 1h30 | **Participants :** Le manager + toute l'équipe opérationnelle (5 à 10 personnes)
+
+### Phase 1 — Collecte (20 min)
+Chaque collaborateur note sur un post-it (physique ou digital) **les 2 tâches les plus chronophages ou pénibles de sa semaine**. Pas de filtre, pas de jugement. On collecte les "irritants".
+
+### Phase 2 — Regroupement (10 min)
+Le manager regroupe les post-its par thème (ex: "Rédaction", "Recherche documentaire", "Saisie de données", "Communication client"). Les doublons montrent les irritants partagés par toute l'équipe.
+
+### Phase 3 — Scoring collectif (40 min)
+Pour chaque irritant regroupé, l'équipe attribue ensemble les scores A, B, C en débattant ouvertement. C'est un moment clé de co-construction (*Open-Source Change*). Le manager facilite le débat mais ne décide pas seul.
+
+### Phase 4 — Engagement (20 min)
+On sélectionne les 2 ou 3 cas d'usage "Feux Verts" (🟢). Pour chacun, on désigne un **"Champion IA"** volontaire dans l'équipe (celui qui testera l'outil pendant 10 jours et partagera ses retours). On fixe une date de bilan.
+
+> **💡 L'objectif caché de cet atelier :** Ce n'est pas de trouver le meilleur cas d'usage. C'est de donner la parole aux collaborateurs, de les impliquer dans la décision, et de transformer la peur de l'IA en curiosité. Le changement devient le leur, pas celui de la direction.
+
+---
+
+## 7. Bibliothèque de Cas d'Usage Réels dans l'Assurance
+
+Cette section vous donne une vision concrète de ce qui se déploie dans le secteur assurance. Chaque cas d'usage est pré-scoré (A=Faisabilité, B=Risque, C=Impact). Utilisez cette bibliothèque visuelle comme point de départ pour vos ateliers.
+
+<div class="space-y-12 mt-8">
+
+<!-- Domaine 1: Gestion de Sinistres -->
+<div>
+    <h3 class="flex items-center gap-2 text-sky-400 border-b border-white/10 pb-3 mb-6 font-bold uppercase tracking-wider text-sm">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+        Domaine 1 : Gestion de Sinistres
+    </h3>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Cas 1.1 -->
+        <div class="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/60 transition-all hover:border-sky-500/30 group relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
+            <div class="flex justify-between items-start mb-4 pl-2">
+                <h4 class="text-white font-bold m-0 text-lg group-hover:text-sky-400 transition-colors">1.1 Synthèse de rapports</h4>
+                <span class="px-3 py-1 bg-green-500/10 text-green-400 rounded-full text-[10px] font-bold border border-green-500/20 whitespace-nowrap">🟢 GO IMMÉDIAT (13)</span>
+            </div>
+            <p class="text-sm text-slate-300 mb-5 pl-2">L'IA lit le rapport PDF de l'expert et produit en 30 secondes une fiche synthétique (cause, dommages, montant estimé).</p>
+            <div class="grid grid-cols-2 gap-3 text-xs mb-4 pl-2">
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Qui l'utilise</span>
+                    <span class="text-slate-200 font-medium">Covéa, Groupama...</span>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Résultat observé</span>
+                    <span class="text-green-400 font-medium">-30 min par dossier</span>
+                </div>
+            </div>
+            <div class="text-xs text-orange-300/90 bg-orange-500/5 p-3 rounded-lg border border-orange-500/10 ml-2">
+                <strong>⚠️ Vigilance :</strong> L'IA peut manquer des nuances du rapport. Relecture obligatoire.
+            </div>
+        </div>
+
+        <!-- Cas 1.2 -->
+        <div class="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/60 transition-all hover:border-sky-500/30 group relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-1 h-full bg-yellow-500"></div>
+            <div class="flex justify-between items-start mb-4 pl-2">
+                <h4 class="text-white font-bold m-0 text-lg group-hover:text-sky-400 transition-colors">1.2 Détection d'incohérences</h4>
+                <span class="px-3 py-1 bg-yellow-500/10 text-yellow-400 rounded-full text-[10px] font-bold border border-yellow-500/20 whitespace-nowrap">🟡 À PLANIFIER (10)</span>
+            </div>
+            <p class="text-sm text-slate-300 mb-5 pl-2">Croise la déclaration avec l'historique et la météo pour signaler des incohérences (aide à la détection de fraude).</p>
+            <div class="grid grid-cols-2 gap-3 text-xs mb-4 pl-2">
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Qui l'utilise</span>
+                    <span class="text-slate-200 font-medium">AXA, Mutuelles...</span>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Résultat observé</span>
+                    <span class="text-green-400 font-medium">+20% de détection</span>
+                </div>
+            </div>
+            <div class="text-xs text-orange-300/90 bg-orange-500/5 p-3 rounded-lg border border-orange-500/10 ml-2">
+                <strong>⚠️ Vigilance :</strong> Risque EU AI Act si décision autonome. Doit rester une aide humaine.
+            </div>
+        </div>
+
+        <!-- Cas 1.3 -->
+        <div class="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/60 transition-all hover:border-sky-500/30 group relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-1 h-full bg-yellow-500"></div>
+            <div class="flex justify-between items-start mb-4 pl-2">
+                <h4 class="text-white font-bold m-0 text-lg group-hover:text-sky-400 transition-colors">1.3 Courriers d'indemnisation</h4>
+                <span class="px-3 py-1 bg-yellow-500/10 text-yellow-400 rounded-full text-[10px] font-bold border border-yellow-500/20 whitespace-nowrap">🟡 À PLANIFIER (11)</span>
+            </div>
+            <p class="text-sm text-slate-300 mb-5 pl-2">Génère un brouillon de courrier structuré (montant, mentions légales) à partir des données du dossier clôturé.</p>
+            <div class="grid grid-cols-2 gap-3 text-xs mb-4 pl-2">
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Qui l'utilise</span>
+                    <span class="text-slate-200 font-medium">MAIF, MACIF...</span>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Résultat observé</span>
+                    <span class="text-green-400 font-medium">-25 min par courrier</span>
+                </div>
+            </div>
+            <div class="text-xs text-orange-300/90 bg-orange-500/5 p-3 rounded-lg border border-orange-500/10 ml-2">
+                <strong>⚠️ Vigilance :</strong> Relire mot à mot (risque d'hallucination sur les montants juridiques).
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Domaine 2: Souscription -->
+<div>
+    <h3 class="flex items-center gap-2 text-sky-400 border-b border-white/10 pb-3 mb-6 font-bold uppercase tracking-wider text-sm">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+        Domaine 2 : Souscription
+    </h3>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Cas 2.1 -->
+        <div class="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/60 transition-all hover:border-sky-500/30 group relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-1 h-full bg-yellow-500"></div>
+            <div class="flex justify-between items-start mb-4 pl-2">
+                <h4 class="text-white font-bold m-0 text-lg group-hover:text-sky-400 transition-colors">2.1 Analyse questionnaires</h4>
+                <span class="px-3 py-1 bg-yellow-500/10 text-yellow-400 rounded-full text-[10px] font-bold border border-yellow-500/20 whitespace-nowrap">🟡 À PLANIFIER (11)</span>
+            </div>
+            <p class="text-sm text-slate-300 mb-5 pl-2">Lit le formulaire prospect et signale infos manquantes ou signaux de risques (sans décider seule).</p>
+            <div class="grid grid-cols-2 gap-3 text-xs mb-4 pl-2">
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Qui l'utilise</span>
+                    <span class="text-slate-200 font-medium">Leocare, Lovys...</span>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Résultat observé</span>
+                    <span class="text-green-400 font-medium">-40% temps prépa</span>
+                </div>
+            </div>
+            <div class="text-xs text-orange-300/90 bg-orange-500/5 p-3 rounded-lg border border-orange-500/10 ml-2">
+                <strong>⚠️ Vigilance :</strong> Test de biais algorithmique obligatoire pour éviter la discrimination indirecte.
+            </div>
+        </div>
+
+        <!-- Cas 2.2 -->
+        <div class="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/60 transition-all hover:border-sky-500/30 group relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-1 h-full bg-yellow-500"></div>
+            <div class="flex justify-between items-start mb-4 pl-2">
+                <h4 class="text-white font-bold m-0 text-lg group-hover:text-sky-400 transition-colors">2.2 FAQ Intelligente (CGV)</h4>
+                <span class="px-3 py-1 bg-yellow-500/10 text-yellow-400 rounded-full text-[10px] font-bold border border-yellow-500/20 whitespace-nowrap">🟡 À PLANIFIER (10)</span>
+            </div>
+            <p class="text-sm text-slate-300 mb-5 pl-2">Système de chat interne (RAG) permettant au conseiller d'interroger la base documentaire complexe des conditions générales.</p>
+            <div class="grid grid-cols-2 gap-3 text-xs mb-4 pl-2">
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Qui l'utilise</span>
+                    <span class="text-slate-200 font-medium">Generali, Allianz...</span>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Résultat observé</span>
+                    <span class="text-green-400 font-medium">-25% appels support</span>
+                </div>
+            </div>
+            <div class="text-xs text-orange-300/90 bg-orange-500/5 p-3 rounded-lg border border-orange-500/10 ml-2">
+                <strong>⚠️ Vigilance :</strong> Une base documentaire à jour est le prérequis absolu pour éviter les erreurs.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Domaine 3: Relation Client -->
+<div>
+    <h3 class="flex items-center gap-2 text-sky-400 border-b border-white/10 pb-3 mb-6 font-bold uppercase tracking-wider text-sm">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z"></path></svg>
+        Domaine 3 : Relation Client / Agences
+    </h3>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Cas 3.1 -->
+        <div class="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/60 transition-all hover:border-sky-500/30 group relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
+            <div class="flex justify-between items-start mb-4 pl-2">
+                <h4 class="text-white font-bold m-0 text-lg group-hover:text-sky-400 transition-colors">3.1 Prépa RDV Client</h4>
+                <span class="px-3 py-1 bg-green-500/10 text-green-400 rounded-full text-[10px] font-bold border border-green-500/20 whitespace-nowrap">🟢 GO IMMÉDIAT (12)</span>
+            </div>
+            <p class="text-sm text-slate-300 mb-5 pl-2">Génère un "brief conseiller" avant le RDV (historique, sinistres, opportunités de multi-équipement).</p>
+            <div class="grid grid-cols-2 gap-3 text-xs mb-4 pl-2">
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Qui l'utilise</span>
+                    <span class="text-slate-200 font-medium">Gan, Groupama...</span>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Résultat observé</span>
+                    <span class="text-green-400 font-medium">+12% opportunités</span>
+                </div>
+            </div>
+            <div class="text-xs text-orange-300/90 bg-orange-500/5 p-3 rounded-lg border border-orange-500/10 ml-2">
+                <strong>⚠️ Vigilance :</strong> Utiliser impérativement une IA interne sécurisée (pas de ChatGPT public).
+            </div>
+        </div>
+
+        <!-- Cas 3.2 -->
+        <div class="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/60 transition-all hover:border-sky-500/30 group relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
+            <div class="flex justify-between items-start mb-4 pl-2">
+                <h4 class="text-white font-bold m-0 text-lg group-hover:text-sky-400 transition-colors">3.2 Rép. aux réclamations</h4>
+                <span class="px-3 py-1 bg-green-500/10 text-green-400 rounded-full text-[10px] font-bold border border-green-500/20 whitespace-nowrap">🟢 GO IMMÉDIAT (13)</span>
+            </div>
+            <p class="text-sm text-slate-300 mb-5 pl-2">Propose un brouillon de réponse empathique face à un client mécontent, que le conseiller personnalise.</p>
+            <div class="grid grid-cols-2 gap-3 text-xs mb-4 pl-2">
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Qui l'utilise</span>
+                    <span class="text-slate-200 font-medium">Allianz, MMA, AXA...</span>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Résultat observé</span>
+                    <span class="text-green-400 font-medium">Réponse en < 4h</span>
+                </div>
+            </div>
+            <div class="text-xs text-orange-300/90 bg-orange-500/5 p-3 rounded-lg border border-orange-500/10 ml-2">
+                <strong>⚠️ Vigilance :</strong> Attention aux "réponses en boîte". L'humain doit garder l'authenticité de la relation.
+            </div>
+        </div>
+
+        <!-- Cas 3.3 -->
+        <div class="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/60 transition-all hover:border-sky-500/30 group relative overflow-hidden lg:col-span-2">
+            <div class="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
+            <div class="flex justify-between items-start mb-4 pl-2">
+                <h4 class="text-white font-bold m-0 text-lg group-hover:text-sky-400 transition-colors">3.3 Transcription d'appels</h4>
+                <span class="px-3 py-1 bg-green-500/10 text-green-400 rounded-full text-[10px] font-bold border border-green-500/20 whitespace-nowrap">🟢 GO IMMÉDIAT (12)</span>
+            </div>
+            <p class="text-sm text-slate-300 mb-5 pl-2">Transcrit l'appel, génère un résumé structuré et pré-remplit le compte-rendu dans l'outil CRM.</p>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs mb-4 pl-2">
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 lg:col-span-2">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Qui l'utilise</span>
+                    <span class="text-slate-200 font-medium">CNP Assurances, Covéa...</span>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 lg:col-span-2">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Résultat observé</span>
+                    <span class="text-green-400 font-medium">Saisie CRM en < 2 min</span>
+                </div>
+            </div>
+            <div class="text-xs text-orange-300/90 bg-orange-500/5 p-3 rounded-lg border border-orange-500/10 ml-2">
+                <strong>⚠️ Vigilance :</strong> Le client doit être informé. Attention critique si données de santé (validation DPO requise).
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Domaine 4: IT -->
+<div class="mt-8">
+    <h3 class="flex items-center gap-2 text-sky-400 border-b border-white/10 pb-3 mb-6 font-bold uppercase tracking-wider text-sm">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+        Domaine 4 : IT / Projets Digitaux
+    </h3>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <!-- Cas 4.1 -->
+        <div class="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/60 transition-all hover:border-sky-500/30 group relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
+            <div class="flex justify-between items-start mb-4 pl-2">
+                <h4 class="text-white font-bold m-0 text-lg group-hover:text-sky-400 transition-colors">4.1 Assistance au code</h4>
+                <span class="px-3 py-1 bg-green-500/10 text-green-400 rounded-full text-[10px] font-bold border border-green-500/20 whitespace-nowrap">🟢 GO IMMÉDIAT (13)</span>
+            </div>
+            <p class="text-sm text-slate-300 mb-5 pl-2">Suggère du code, génère des tests unitaires et documente automatiquement les fonctions (Copilot, Cursor).</p>
+            <div class="grid grid-cols-2 gap-3 text-xs mb-4 pl-2">
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Qui l'utilise</span>
+                    <span class="text-slate-200 font-medium">AXA Tech, BNP Cardif...</span>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Résultat observé</span>
+                    <span class="text-green-400 font-medium">+14% productivité</span>
+                </div>
+            </div>
+            <div class="text-xs text-orange-300/90 bg-orange-500/5 p-3 rounded-lg border border-orange-500/10 ml-2">
+                <strong>⚠️ Vigilance :</strong> Revue de sécurité systématique recommandée (cf. OWASP Top 10 pour LLM).
+            </div>
+        </div>
+
+        <!-- Cas 4.2 -->
+        <div class="bg-slate-800/40 border border-slate-700/50 rounded-2xl p-6 hover:bg-slate-800/60 transition-all hover:border-sky-500/30 group relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
+            <div class="flex justify-between items-start mb-4 pl-2">
+                <h4 class="text-white font-bold m-0 text-lg group-hover:text-sky-400 transition-colors">4.2 Génération Doc Technique</h4>
+                <span class="px-3 py-1 bg-green-500/10 text-green-400 rounded-full text-[10px] font-bold border border-green-500/20 whitespace-nowrap">🟢 GO IMMÉDIAT (12)</span>
+            </div>
+            <p class="text-sm text-slate-300 mb-5 pl-2">À partir du code source, l'IA génère les spécifications fonctionnelles ou la documentation API.</p>
+            <div class="grid grid-cols-2 gap-3 text-xs mb-4 pl-2">
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Qui l'utilise</span>
+                    <span class="text-slate-200 font-medium">SG Assurances, Cardif...</span>
+                </div>
+                <div class="bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <span class="text-slate-400 block mb-1 uppercase tracking-wider text-[10px]">Résultat observé</span>
+                    <span class="text-green-400 font-medium">-60% temps doc</span>
+                </div>
+            </div>
+            <div class="text-xs text-orange-300/90 bg-orange-500/5 p-3 rounded-lg border border-orange-500/10 ml-2">
+                <strong>⚠️ Vigilance :</strong> Peut être incomplète sur les cas atypiques. Revue technique humaine nécessaire.
+            </div>
+        </div>
+    </div>
+</div>
+
+</div>
+
+### Récapitulatif de la Bibliothèque
+
+| Cas d'usage | Domaine | Score | Verdict | Risque EU AI Act |
+|---|---|:---:|---|---|
+| Synthèse de rapports d'expertise | Sinistres | 13 | 🟢 Go | ❌ Non |
+| Génération courriers d'indemnisation | Sinistres | 11 | 🟡 Planifier | ❌ Non (si supervision humaine) |
+| Détection d'anomalies déclarations | Sinistres | 10 | 🟡 Planifier | ✅ Haut risque possible |
+| Analyse questionnaires souscription | Souscription | 11 | 🟡 Planifier | ✅ Haut risque possible |
+| FAQ intelligente sur CGV | Souscription | 10 | 🟡 Planifier | ❌ Non |
+| Préparation RDV client | Agence | 12 | 🟢 Go | ❌ Non |
+| Réponse assistée aux réclamations | Agence | 13 | 🟢 Go | ❌ Non |
+| Transcription et synthèse d'appels | Agence | 12 | 🟢 Go | ⚠️ Données santé : vigilance |
+| Assistance au code (Copilot) | IT | 13 | 🟢 Go | ❌ Non |
+| Génération documentation technique | IT | 12 | 🟢 Go | ❌ Non |
+    </script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", async () => {
+            const rawMarkdown = document.getElementById("md-data").textContent;
+            // Remove leading indentation to prevent marked.js from turning HTML blocks into <pre><code>
+            const cleanMarkdown = rawMarkdown.replace(/^[ \t]+/gm, '');
+            
+            // Initialize Mermaid
+            mermaid.initialize({ startOnLoad: false, theme: 'dark', backgroundColor: 'transparent' });
+            
+            // Render Markdown
+            document.getElementById("content").innerHTML = marked.parse(cleanMarkdown);
+            
+            // Render Mermaid blocks
+            document.querySelectorAll('code.language-mermaid').forEach((block, index) => {
+                const parent = block.parentElement;
+                const newDiv = document.createElement('div');
+                newDiv.className = 'mermaid fade-in-section';
+                newDiv.id = 'mermaid-diagram-' + index;
+                newDiv.style.textAlign = 'center';
+                newDiv.style.margin = '2rem 0';
+                newDiv.textContent = block.textContent;
+                parent.replaceWith(newDiv);
+            });
+            
+            try {
+                await mermaid.run({
+                    nodes: document.querySelectorAll('.mermaid')
+                });
+            } catch (err) {
+                console.error("Mermaid error:", err);
+            }
+            
+            // 1. Generate Table of Contents (TOC)
+            const content = document.getElementById("content");
+            const headings = content.querySelectorAll("h2, h3");
+            const toc = document.getElementById("toc");
+            
+            headings.forEach((heading, index) => {
+                // Create unique ID if not present
+                if (!heading.id) {
+                    heading.id = "heading-" + index;
+                }
+                
+                const li = document.createElement("li");
+                const a = document.createElement("a");
+                a.href = "#" + heading.id;
+                a.textContent = heading.textContent;
+                
+                if (heading.tagName.toLowerCase() === "h3") {
+                    a.classList.add("toc-h3");
+                }
+                
+                li.appendChild(a);
+                toc.appendChild(li);
+            });
+
+            // 2. Add Intersection Observer for TOC highlight & Scroll Animation
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.1
+            };
+
+            // Wrap elements in animated containers
+            const elementsToAnimate = content.querySelectorAll("h2, h3, p, ul, ol, blockquote, table, .mermaid");
+            
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    // Animation
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('is-visible');
+                    }
+                    
+                    // TOC Highlighting (only for headings)
+                    if (entry.isIntersecting && (entry.target.tagName === 'H2' || entry.target.tagName === 'H3')) {
+                        document.querySelectorAll('#toc a').forEach(a => {
+                            a.classList.remove('active');
+                            if (a.getAttribute('href') === '#' + entry.target.id) {
+                                a.classList.add('active');
+                            }
+                        });
+                    }
+                });
+            }, observerOptions);
+
+            elementsToAnimate.forEach(el => {
+                el.classList.add('fade-in-section');
+                observer.observe(el);
+            });
+
+            // 3. Progress Bar
+            window.addEventListener('scroll', () => {
+                const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+                const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+                const scrolled = (winScroll / height) * 100;
+                document.getElementById("progress-bar").style.width = scrolled + "%";
+            });
+
+            // 4. Three.js Corporate 3D Sphere Background
+            gsap.registerPlugin(ScrollTrigger);
+            const canvas = document.getElementById('bg-canvas');
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, (window.innerWidth * 0.6) / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+            
+            renderer.setSize(window.innerWidth * 0.6, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            const geometry = new THREE.IcosahedronGeometry(2.5, 1);
+            const material = new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, transparent: true, opacity: 0.6 });
+            const sphere = new THREE.Mesh(geometry, material);
+            
+            const particlesGeometry = new THREE.BufferGeometry();
+            const particlesCount = 200;
+            const posArray = new Float32Array(particlesCount * 3);
+            for(let i = 0; i < particlesCount * 3; i++) { posArray[i] = (Math.random() - 0.5) * 5; }
+            particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            const particlesMaterial = new THREE.PointsMaterial({ size: 0.05, color: 0xa855f7 });
+            const particlesMesh = new THREE.Points(particlesGeometry, particlesMaterial);
+
+            scene.add(sphere);
+            scene.add(particlesMesh);
+            camera.position.z = 5;
+
+            let mouseX = 0; let mouseY = 0; let targetX = 0; let targetY = 0;
+            const windowHalfX = (window.innerWidth * 0.6) / 2;
+            const windowHalfY = window.innerHeight / 2;
+            document.addEventListener('mousemove', (event) => { mouseX = (event.clientX - windowHalfX) * 0.001; mouseY = (event.clientY - windowHalfY) * 0.001; });
+
+            gsap.to(sphere.rotation, { scrollTrigger: { trigger: "body", start: "top top", end: "bottom bottom", scrub: 1 }, x: Math.PI * 2, y: Math.PI });
+            gsap.to(camera.position, { scrollTrigger: { trigger: "body", start: "top top", end: "bottom bottom", scrub: 1 }, z: 3 });
+
+            const clock = new THREE.Clock();
+            function animate() {
+                requestAnimationFrame(animate);
+                const elapsedTime = clock.getElapsedTime();
+                targetX = mouseX * 0.5; targetY = mouseY * 0.5;
+                sphere.rotation.y += 0.005; particlesMesh.rotation.y = -elapsedTime * 0.1;
+                sphere.rotation.x += 0.05 * (targetY - sphere.rotation.x); sphere.rotation.y += 0.05 * (targetX - sphere.rotation.y);
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = (window.innerWidth * 0.6) / window.innerHeight; camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth * 0.6, window.innerHeight);
+            });
+        });
+    </script>
+</body>
+</html>

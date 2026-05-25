@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Manager : RPG Village Edition</title>
+    <!-- Police Pixel Art depuis Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            /* Palette Pixel / Bois / Parchemin */
+            --bg-color: #87CEEB;
+            --panel-bg: #8B5A2B;
+            --panel-border-light: #C18859;
+            --panel-border-dark: #5C3A21;
+            --text-main: #3E2723;
+            --text-light: #ffffff;
+            
+            /* Couleurs des jauges style RPG */
+            --perf: #FACC15; /* Or/XP */
+            --mental: #EF4444; /* Rouge/Coeur */
+            --lit: #3B82F6; /* Bleu/Mana */
+            --gov: #10B981; /* Vert/Émeraude */
+        }
+
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: var(--bg-color);
+            
+            /* Image générée de haute qualité - Village prospère par défaut */
+            background-image: url('file:///C:/Users/FloLoulou/.gemini/antigravity/brain/7fefdbd2-ac5c-403c-ae2a-e2ee80c117b7/village_good_1778259704587.png');
+            background-size: cover;
+            background-position: center bottom;
+            image-rendering: pixelated; /* Maintient l'aspect pixel net */
+            transition: background-image 0.5s ease-in-out; /* Transition douce entre les états */
+            
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Classe appliquée quand le village va mal */
+        body.bad-state {
+            /* Image générée de haute qualité - Village ruiné/sombre */
+            background-image: url('file:///C:/Users/FloLoulou/.gemini/antigravity/brain/7fefdbd2-ac5c-403c-ae2a-e2ee80c117b7/village_bad_1778259717882.png');
+        }
+
+        /* Panneaux en bois 3D (Minecraft UI) */
+        .pixel-panel {
+            background-color: var(--panel-bg);
+            border: 4px solid #000;
+            box-shadow: 
+                inset 4px 4px 0px var(--panel-border-light),
+                inset -4px -4px 0px var(--panel-border-dark),
+                8px 8px 0px rgba(0,0,0,0.6);
+        }
+
+        /* HEADER & JAUGES */
+        .header {
+            width: 90%;
+            max-width: 800px;
+            margin-top: 20px;
+            padding: 20px;
+            color: var(--text-light);
+            text-shadow: 2px 2px 0px #000;
+        }
+
+        .gauges-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .gauge-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .gauge-label {
+            font-size: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .gauge-bar-bg {
+            width: 100%;
+            height: 24px;
+            background-color: #2c2c2c;
+            border: 4px solid #000;
+            box-shadow: inset 4px 4px 0px rgba(0,0,0,0.6);
+            position: relative;
+        }
+
+        .gauge-bar-fill {
+            height: 100%;
+            width: 50%;
+            transition: width 0.3s steps(10), background-color 0.3s;
+            box-shadow: inset 0px 4px 0px rgba(255,255,255,0.4);
+        }
+
+        #bar-perf { background-color: var(--perf); }
+        #bar-mental { background-color: var(--mental); }
+        #bar-lit { background-color: var(--lit); }
+        #bar-gov { background-color: var(--gov); }
+
+        /* ZONE DE JEU */
+        .game-area {
+            flex-grow: 1;
+            width: 100%;
+            max-width: 700px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        /* CARTE DILEMME */
+        .card {
+            background-color: #F5E6C8;
+            border: 6px solid var(--panel-border-dark);
+            outline: 4px solid #000;
+            box-shadow: 8px 8px 0px rgba(0,0,0,0.7);
+            padding: 30px 20px;
+            width: 100%;
+            text-align: center;
+            transition: transform 0.2s steps(5), opacity 0.2s;
+            position: absolute;
+            z-index: 10;
+        }
+
+        .card.slide-out-left { transform: translateX(-150%) rotate(-5deg); opacity: 0; }
+        .card.slide-out-right { transform: translateX(150%) rotate(5deg); opacity: 0; }
+
+        .card-character {
+            font-size: 14px;
+            color: #8B0000;
+            margin-bottom: 25px;
+            text-shadow: 1px 1px 0px rgba(255,255,255,0.5);
+            line-height: 1.5;
+        }
+
+        .card-text {
+            font-size: 12px;
+            line-height: 2;
+            margin-bottom: 35px;
+            font-weight: bold;
+        }
+
+        /* BOUTONS */
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 100%;
+        }
+
+        button {
+            font-family: 'Press Start 2P', cursive;
+            background-color: var(--panel-bg);
+            color: var(--text-light);
+            border: 4px solid #000;
+            box-shadow: 
+                inset 4px 4px 0px var(--panel-border-light),
+                inset -4px -4px 0px var(--panel-border-dark),
+                4px 4px 0px rgba(0,0,0,0.6);
+            padding: 15px;
+            font-size: 10px;
+            line-height: 1.8;
+            cursor: pointer;
+            text-align: left;
+            text-shadow: 2px 2px 0px #000;
+        }
+
+        button:active {
+            box-shadow: 
+                inset 4px 4px 0px var(--panel-border-dark),
+                inset -4px -4px 0px var(--panel-border-light),
+                0px 0px 0px rgba(0,0,0,0);
+            transform: translateY(4px) translateX(4px);
+        }
+
+        button:hover { background-color: #A06D3B; }
+
+        /* FEEDBACK */
+        .feedback-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            text-align: center;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .feedback-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .feedback-text {
+            font-size: 14px;
+            color: white;
+            line-height: 2;
+            margin-bottom: 40px;
+            text-shadow: 2px 2px 0px #000;
+            border: 4px solid #fff;
+            padding: 20px;
+            background: rgba(0,0,0,0.5);
+        }
+
+        .btn-next {
+            background-color: #10B981;
+            text-align: center;
+            box-shadow: 
+                inset 4px 4px 0px #34D399,
+                inset -4px -4px 0px #047857,
+                4px 4px 0px rgba(0,0,0,0.6);
+            font-size: 14px;
+            padding: 20px 40px;
+        }
+        
+        .btn-next:hover { background-color: #059669; }
+        
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="header pixel-panel">
+        <div class="gauges-grid">
+            <div class="gauge-container">
+                <div class="gauge-label"><span>[OR] Perf. Hybride</span> <span id="val-perf">50</span></div>
+                <div class="gauge-bar-bg"><div class="gauge-bar-fill" id="bar-perf"></div></div>
+            </div>
+            <div class="gauge-container">
+                <div class="gauge-label"><span>[HP] Santé Mentale</span> <span id="val-mental">50</span></div>
+                <div class="gauge-bar-bg"><div class="gauge-bar-fill" id="bar-mental"></div></div>
+            </div>
+            <div class="gauge-container">
+                <div class="gauge-label"><span>[XP] Littératie IA</span> <span id="val-lit">50</span></div>
+                <div class="gauge-bar-bg"><div class="gauge-bar-fill" id="bar-lit"></div></div>
+            </div>
+            <div class="gauge-container">
+                <div class="gauge-label"><span>[LV] Gouvernance</span> <span id="val-gov">50</span></div>
+                <div class="gauge-bar-bg"><div class="gauge-bar-fill" id="bar-gov"></div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="game-area">
+        <div class="card" id="game-card">
+            <div class="card-character" id="card-char">TAVERNIER (RH)</div>
+            <div class="card-text" id="card-desc">Chargement...</div>
+            <div class="controls" id="card-options"></div>
+        </div>
+
+        <div class="feedback-overlay" id="feedback-screen">
+            <div class="feedback-text" id="feedback-msg">Résultat...</div>
+            <button class="btn-next" onclick="nextCard()">CONTINUER</button>
+        </div>
+    </div>
+
+    <script>
+        let state = {
+            perf: 50,
+            mental: 50,
+            lit: 30,
+            gov: 60
+        };
+
+        let currentCardIndex = 0;
+
+        const cards = [
+            {
+                character: "📜 EDIT DU ROI (DIRECTION)",
+                text: "Une loi impose d'utiliser la magie (IA) pour réduire de 20% le travail aux champs. Les villageois sont terrifiés par les golems.",
+                options: [
+                    {
+                        text: "Forcer le travail avec les golems. Le Roi l'exige.",
+                        impact: { perf: 15, mental: -30, lit: 0, gov: 0 },
+                        feedback: "Vos récoltes sont bonnes, mais le village est en plein technostress. L'absentéisme augmente."
+                    },
+                    {
+                        text: "Réunir le conseil du village pour choisir ensemble quelles tâches déléguer.",
+                        impact: { perf: -5, mental: 15, lit: 10, gov: 5 },
+                        feedback: "La transition est plus lente, mais les villageois reprennent le contrôle de leur métier."
+                    }
+                ]
+            },
+            {
+                character: "🕵️‍♂️ GARDE DU VILLAGE",
+                text: "Vous découvrez que l'herboriste utilise secrètement un Oracle de l'Ombre (Shadow IT) pour analyser ses potions.",
+                options: [
+                    {
+                        text: "Fermer les yeux, ses potions sont excellentes.",
+                        impact: { perf: 10, mental: 0, lit: 0, gov: -35 },
+                        feedback: "Déférence algorithmique ! L'Oracle a divulgué vos secrets aux marchands rivaux. Grosse perte de Gouvernance."
+                    },
+                    {
+                        text: "Lui offrir un Oracle du Royaume (licence sécurisée) et la nommer tutrice.",
+                        impact: { perf: 5, mental: 10, lit: 20, gov: 10 },
+                        feedback: "Vous transformez un risque en opportunité de montée en compétence collective !"
+                    }
+                ]
+            },
+            {
+                character: "🤖 GOLEM AUTO-CLAIM",
+                text: "Le Golem de tri a rejeté le blé d'un fermier. Le meunier humain pense que le Golem se trompe, mais vérifier prendrait des heures.",
+                options: [
+                    {
+                        text: "Faire confiance au Golem. Il voit mieux que nous.",
+                        impact: { perf: 10, mental: -15, lit: -10, gov: -30 },
+                        feedback: "Biais d'automatisation ! Le Golem avait 'halluciné'. Le fermier est ruiné à tort. La confiance s'effondre."
+                    },
+                    {
+                        text: "Soutenir le meunier humain et auditer le Golem.",
+                        impact: { perf: -15, mental: 10, lit: 15, gov: 20 },
+                        feedback: "Professionnel réflexif. Vous montrez à la machine ses limites et protégez l'intégrité du village."
+                    }
+                ]
+            }
+        ];
+
+        function updateGauges() {
+            const clamp = (val) => Math.max(0, Math.min(100, val));
+            state.perf = clamp(state.perf);
+            state.mental = clamp(state.mental);
+            state.lit = clamp(state.lit);
+            state.gov = clamp(state.gov);
+
+            document.getElementById('val-perf').innerText = state.perf;
+            document.getElementById('bar-perf').style.width = state.perf + '%';
+
+            document.getElementById('val-mental').innerText = state.mental;
+            document.getElementById('bar-mental').style.width = state.mental + '%';
+
+            document.getElementById('val-lit').innerText = state.lit;
+            document.getElementById('bar-lit').style.width = state.lit + '%';
+
+            document.getElementById('val-gov').innerText = state.gov;
+            document.getElementById('bar-gov').style.width = state.gov + '%';
+
+            // LOGIQUE DE CHANGEMENT DE DÉCOR
+            // Si la moyenne est mauvaise, ou si une jauge tombe en zone critique (<= 25)
+            const isBadState = (state.perf <= 25 || state.mental <= 25 || state.gov <= 25 || state.lit <= 25);
+            
+            if (isBadState) {
+                document.body.classList.add('bad-state');
+            } else {
+                document.body.classList.remove('bad-state');
+            }
+        }
+
+        function checkGameOver() {
+            if (state.perf <= 0) return "GAME OVER : Le Roi vous a destitué pour manque de récoltes.";
+            if (state.mental <= 0) return "GAME OVER : Votre village s'est révolté (Burn-out).";
+            if (state.gov <= 0) return "GAME OVER : Le conseil des Sages vous a condamné pour fuite de magie noire.";
+            return null;
+        }
+
+        function loadCard(index) {
+            if (index >= cards.length) {
+                document.getElementById('card-char').innerText = "🏆 QUÊTE ACCOMPLIE";
+                
+                const isBadState = document.body.classList.contains('bad-state');
+                if(isBadState) {
+                    document.getElementById('card-desc').innerText = "Vous avez survécu, mais à quel prix ? Le village est en ruine morale. Le Roi vous maintient de justesse.";
+                } else {
+                    document.getElementById('card-desc').innerText = "Félicitations ! Vous avez guidé votre village dans l'ère de la magie (IA) en préservant l'humain et l'éthique.";
+                }
+
+                document.getElementById('card-options').innerHTML = "<button onclick='location.reload()'>JOUER UNE NOUVELLE PARTIE</button>";
+                return;
+            }
+
+            const card = cards[index];
+            const cardEl = document.getElementById('game-card');
+            
+            cardEl.className = "card";
+            document.getElementById('card-char').innerText = card.character;
+            document.getElementById('card-desc').innerText = card.text;
+            
+            const optionsContainer = document.getElementById('card-options');
+            optionsContainer.innerHTML = '';
+
+            card.options.forEach((opt, i) => {
+                const btn = document.createElement('button');
+                btn.innerText = "► " + opt.text;
+                btn.onclick = () => makeChoice(opt, i % 2 === 0 ? 'left' : 'right');
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        function makeChoice(option, direction) {
+            const cardEl = document.getElementById('game-card');
+            cardEl.classList.add(direction === 'left' ? 'slide-out-left' : 'slide-out-right');
+
+            setTimeout(() => {
+                state.perf += option.impact.perf;
+                state.mental += option.impact.mental;
+                state.lit += option.impact.lit;
+                state.gov += option.impact.gov;
+                updateGauges();
+
+                const over = checkGameOver();
+                const feedbackEl = document.getElementById('feedback-screen');
+                feedbackEl.querySelector('#feedback-msg').innerHTML = over ? `<span style='color:#ef4444; font-size:20px; font-weight:bold'>${over}</span>` : option.feedback;
+                
+                const btnNext = document.querySelector('.btn-next');
+                if (over) {
+                    btnNext.innerText = "RECOMMENCER";
+                    btnNext.onclick = () => location.reload();
+                } else {
+                    btnNext.innerText = "CONTINUER";
+                    btnNext.onclick = nextCard;
+                }
+                
+                feedbackEl.classList.add('active');
+            }, 250);
+        }
+
+        function nextCard() {
+            document.getElementById('feedback-screen').classList.remove('active');
+            currentCardIndex++;
+            loadCard(currentCardIndex);
+        }
+
+        updateGauges();
+        loadCard(currentCardIndex);
+    </script>
+</body>
+</html>

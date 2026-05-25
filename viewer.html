@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Outil IA & Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap');
+        
+        :root {
+            --bg: #020617;
+            --accent: #38bdf8;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: #e2e8f0;
+            font-family: 'Outfit', sans-serif;
+            margin: 0;
+            line-height: 1.6;
+        }
+
+        .glass-container {
+            background: rgba(2, 6, 23, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(56, 189, 248, 0.15);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+        }
+
+        /* Markdown Styling */
+        #content h1 { font-size: 2.5rem; font-weight: 700; color: #fff; margin-bottom: 1.5rem; border-bottom: 2px solid var(--accent); padding-bottom: 0.5rem; }
+        #content h2 { font-size: 1.8rem; font-weight: 600; color: #bae6fd; margin-top: 2.5rem; margin-bottom: 1rem; }
+        #content h3 { font-size: 1.4rem; font-weight: 600; color: #7dd3fc; margin-top: 2rem; margin-bottom: 0.75rem; }
+        #content p { margin-bottom: 1.25rem; }
+        #content ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1.25rem; }
+        #content ol { list-style-type: decimal; margin-left: 1.5rem; margin-bottom: 1.25rem; }
+        #content li { margin-bottom: 0.5rem; }
+        #content strong { color: #fff; font-weight: 600; }
+        #content blockquote { border-left: 4px solid var(--accent); padding-left: 1rem; color: #94a3b8; font-style: italic; margin-bottom: 1.25rem; }
+        #content code { background: rgba(255, 255, 255, 0.1); padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
+        #content table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; }
+        #content th, #content td { border: 1px solid rgba(255, 255, 255, 0.1); padding: 0.75rem; text-align: left; }
+        #content th { background: rgba(255, 255, 255, 0.05); color: #fff; font-weight: 600; }
+        
+        .loader {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: var(--accent);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen py-12 px-6 sm:px-12 lg:px-24">
+
+    <div class="max-w-4xl mx-auto">
+        <!-- Header / Back Button -->
+        <a href="ia-management-experience.html#tools" class="inline-flex items-center gap-2 text-sky-400 hover:text-white transition-colors mb-8 group">
+            <span class="group-hover:-translate-x-1 transition-transform">←</span>
+            <span class="font-semibold uppercase tracking-wider text-sm">Retour à l'expérience</span>
+        </a>
+
+        <!-- Content Container -->
+        <div class="glass-container p-8 sm:p-12 rounded-3xl relative">
+            <div id="loading" class="flex flex-col items-center justify-center py-20 gap-4">
+                <div class="loader"></div>
+                <p class="text-slate-400 text-sm tracking-widest uppercase">Analyse du document...</p>
+            </div>
+            
+            <div id="content" class="hidden">
+                <!-- Markdown parsed content will go here -->
+            </div>
+            
+            <div id="error" class="hidden py-20 text-center">
+                <p class="text-red-400 font-semibold text-lg mb-2">Erreur de chargement</p>
+                <p class="text-slate-400">Le document demandé n'a pas pu être chargé.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const file = urlParams.get('file');
+
+            const loadingEl = document.getElementById('loading');
+            const contentEl = document.getElementById('content');
+            const errorEl = document.getElementById('error');
+
+            if (!file) {
+                loadingEl.classList.add('hidden');
+                errorEl.classList.remove('hidden');
+                errorEl.innerHTML = "<p class='text-red-400'>Aucun fichier spécifié.</p>";
+                return;
+            }
+
+            try {
+                // Fetch the markdown file
+                const response = await fetch(file);
+                if (!response.ok) throw new Error("Fichier introuvable");
+                
+                const markdownText = await response.text();
+                
+                // Parse markdown to HTML
+                const htmlContent = marked.parse(markdownText);
+                
+                // Display content
+                contentEl.innerHTML = htmlContent;
+                loadingEl.classList.add('hidden');
+                contentEl.classList.remove('hidden');
+            } catch (err) {
+                loadingEl.classList.add('hidden');
+                errorEl.classList.remove('hidden');
+                console.error(err);
+            }
+        });
+    </script>
+</body>
+</html>

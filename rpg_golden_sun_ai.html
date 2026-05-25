@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Manager : Golden Sun Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --perf: #FACC15;
+            --mental: #EF4444;
+            --lit: #3B82F6;
+            --gov: #10B981;
+        }
+
+        body {
+            font-family: 'Press Start 2P', cursive;
+            background-color: #0f172a;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* HEADER (Jauges) */
+        .header {
+            width: 100%;
+            max-width: 800px;
+            background: #1e293b;
+            border-bottom: 4px solid #000;
+            padding: 15px;
+            box-sizing: border-box;
+            z-index: 10;
+        }
+
+        .gauges-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 10px;
+        }
+
+        .gauge-container { display: flex; flex-direction: column; gap: 5px; }
+        .gauge-label { font-size: 8px; color: #cbd5e1; }
+        .gauge-bar-bg { width: 100%; height: 12px; background: #000; border: 2px solid #475569; position: relative; }
+        .gauge-bar-fill { height: 100%; width: 50%; transition: width 0.3s; }
+
+        #bar-perf { background-color: var(--perf); }
+        #bar-mental { background-color: var(--mental); }
+        #bar-lit { background-color: var(--lit); }
+        #bar-gov { background-color: var(--gov); }
+
+        /* GAME SCREEN (Viewport du RPG) */
+        #game-container {
+            width: 800px;
+            height: 600px;
+            background-color: #87CEEB;
+            background-image: url('file:///C:/Users/FloLoulou/.gemini/antigravity/brain/7fefdbd2-ac5c-403c-ae2a-e2ee80c117b7/village_good_1778259704587.png');
+            background-size: cover;
+            background-position: center bottom;
+            image-rendering: pixelated;
+            position: relative;
+            overflow: hidden;
+            border: 4px solid #000;
+            margin-top: 20px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            transition: background-image 1s;
+        }
+
+        #game-container.bad-state {
+            background-image: url('file:///C:/Users/FloLoulou/.gemini/antigravity/brain/7fefdbd2-ac5c-403c-ae2a-e2ee80c117b7/village_bad_1778259717882.png');
+        }
+
+        /* ENTITÉS DU JEU */
+        .entity {
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            font-size: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform: translate(-50%, -50%); /* Centrage sur X,Y */
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 5;
+        }
+
+        #player {
+            z-index: 6;
+            transition: transform 0.1s; /* Petit effet de marche */
+        }
+        
+        .npc-marker {
+            position: absolute;
+            top: -20px;
+            font-size: 16px;
+            animation: bounce 1s infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        /* UI JRPG - BOÎTE DE DIALOGUE (Style Golden Sun) */
+        #dialogue-box {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            background: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+            border: 4px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.8), 6px 6px 0px rgba(0,0,0,0.6);
+            padding: 20px;
+            box-sizing: border-box;
+            display: none;
+            z-index: 100;
+        }
+
+        #dialogue-box.active {
+            display: block;
+        }
+
+        .speaker-name {
+            color: #facc15;
+            font-size: 14px;
+            margin-bottom: 15px;
+            text-shadow: 2px 2px #000;
+        }
+
+        .dialogue-text {
+            font-size: 12px;
+            line-height: 1.8;
+            text-shadow: 1px 1px #000;
+            min-height: 40px;
+            margin-bottom: 15px;
+        }
+
+        .dialogue-options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .dialogue-options button {
+            font-family: 'Press Start 2P', cursive;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: 2px solid #94a3b8;
+            padding: 10px;
+            font-size: 10px;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        .dialogue-options button:hover {
+            background: rgba(59, 130, 246, 0.5);
+            border-color: #60a5fa;
+        }
+
+        .hint {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 10px;
+            color: #fff;
+            text-shadow: 1px 1px #000;
+            background: rgba(0,0,0,0.5);
+            padding: 5px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="gauges-grid">
+            <div class="gauge-container"><div class="gauge-label">Perf</div><div class="gauge-bar-bg"><div class="gauge-bar-fill" id="bar-perf"></div></div></div>
+            <div class="gauge-container"><div class="gauge-label">Santé</div><div class="gauge-bar-bg"><div class="gauge-bar-fill" id="bar-mental"></div></div></div>
+            <div class="gauge-container"><div class="gauge-label">Litté</div><div class="gauge-bar-bg"><div class="gauge-bar-fill" id="bar-lit"></div></div></div>
+            <div class="gauge-container"><div class="gauge-label">Gouv</div><div class="gauge-bar-bg"><div class="gauge-bar-fill" id="bar-gov"></div></div></div>
+        </div>
+    </div>
+
+    <div id="game-container">
+        <div class="hint">ZQSD ou FLÈCHES pour bouger. ESPACE pour parler.</div>
+        
+        <!-- Le Joueur -->
+        <div id="player" class="entity">🧙‍♂️</div>
+
+        <!-- Les PNJs générés dynamiquement ici -->
+
+        <!-- La Boîte de Dialogue -->
+        <div id="dialogue-box">
+            <div class="speaker-name" id="d-name">Nom</div>
+            <div class="dialogue-text" id="d-text">Texte...</div>
+            <div class="dialogue-options" id="d-options"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- ETAT DU JEU ---
+        let state = { perf: 50, mental: 50, lit: 30, gov: 60 };
+        let gameState = "PLAYING"; // PLAYING, DIALOGUE
+        let currentNpc = null;
+
+        // --- JOUEUR ---
+        const player = {
+            x: 400, y: 300, speed: 4, size: 48,
+            element: document.getElementById('player')
+        };
+
+        const keys = {
+            ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
+            w: false, s: false, a: false, d: false,
+            z: false, q: false // Support AZERTY
+        };
+
+        // --- PNJS ET QUETES (Scénarios) ---
+        const npcs = [
+            {
+                id: 'roi', emoji: '👑', x: 200, y: 150,
+                name: 'Le Héraut du Roi',
+                completed: false,
+                text: "Par décret royal ! Vous devez utiliser les nouveaux Golems (IA) aux champs. Productivité avant tout !",
+                options: [
+                    { text: "Obéir aveuglément (Forcer l'outil)", impact: { perf: 15, mental: -30, lit: 0, gov: 0 }, reply: "Le Roi est satisfait. Les paysans, beaucoup moins." },
+                    { text: "Convoquer le village pour tester le Golem ensemble (Sens)", impact: { perf: -5, mental: 15, lit: 10, gov: 5 }, reply: "Une démarche sage. La transition sera plus douce." }
+                ]
+            },
+            {
+                id: 'herboriste', emoji: '🧙‍♀️', x: 600, y: 250,
+                name: 'Julie l\'Herboriste',
+                completed: false,
+                text: "Chut ! J'utilise un Oracle de l'Ombre pour mes potions. Ça marche super bien, regardez cette recette !",
+                options: [
+                    { text: "Ignorer le danger, la potion est bonne (Shadow IT)", impact: { perf: 10, mental: 0, lit: 0, gov: -35 }, reply: "Catastrophe ! L'Oracle a vendu notre recette aux gobelins !" },
+                    { text: "Fournir un parchemin officiel sécurisé (Licence IA)", impact: { perf: 5, mental: 10, lit: 20, gov: 10 }, reply: "Merci chef ! Je vais former les apprentis à l'utiliser sans danger." }
+                ]
+            },
+            {
+                id: 'meunier', emoji: '👨‍🌾', x: 400, y: 500,
+                name: 'Le Meunier',
+                completed: false,
+                text: "Le Golem de tri a jeté ma farine ! Il dit qu'elle est empoisonnée, mais je sais que c'est faux !",
+                options: [
+                    { text: "Faire confiance au Golem (Automation Bias)", impact: { perf: 10, mental: -15, lit: -10, gov: -30 }, reply: "Le Golem s'était trompé... Le village n'a plus confiance en la machine." },
+                    { text: "Auditer la décision du Golem (Accountability)", impact: { perf: -15, mental: 10, lit: 15, gov: 20 }, reply: "Vous aviez raison, l'algorithme était biaisé. Intégrité sauvée !" }
+                ]
+            }
+        ];
+
+        // --- INITIALISATION DES PNJS DANS LE DOM ---
+        const gameContainer = document.getElementById('game-container');
+        const npcElements = {};
+
+        npcs.forEach(npc => {
+            const el = document.createElement('div');
+            el.className = 'entity';
+            el.innerHTML = `${npc.emoji}<div class="npc-marker">❕</div>`;
+            el.style.left = npc.x + 'px';
+            el.style.top = npc.y + 'px';
+            gameContainer.appendChild(el);
+            npcElements[npc.id] = el;
+        });
+
+        // --- GESTION DES ENTREES ---
+        window.addEventListener('keydown', (e) => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+            if (e.key === ' ') handleInteraction();
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+        });
+
+        // --- MOTEUR DE DEPLACEMENT ---
+        function updatePlayerPosition() {
+            if (gameState !== "PLAYING") return;
+
+            let dx = 0; let dy = 0;
+            if (keys.ArrowUp || keys.w || keys.z) dy -= player.speed;
+            if (keys.ArrowDown || keys.s) dy += player.speed;
+            if (keys.ArrowLeft || keys.a || keys.q) dx -= player.speed;
+            if (keys.ArrowRight || keys.d) dx += player.speed;
+
+            // Diagonale normalization
+            if (dx !== 0 && dy !== 0) {
+                dx *= 0.707; dy *= 0.707;
+            }
+
+            player.x += dx;
+            player.y += dy;
+
+            // Boundaries
+            player.x = Math.max(24, Math.min(800 - 24, player.x));
+            player.y = Math.max(24, Math.min(600 - 24, player.y));
+
+            player.element.style.left = player.x + 'px';
+            player.element.style.top = player.y + 'px';
+
+            // Petit effet de marche
+            if (dx !== 0 || dy !== 0) {
+                player.element.style.transform = `translate(-50%, -50%) rotate(${Math.sin(Date.now() / 100) * 10}deg)`;
+            } else {
+                player.element.style.transform = `translate(-50%, -50%) rotate(0deg)`;
+            }
+        }
+
+        // --- INTERACTION ---
+        function handleInteraction() {
+            if (gameState === "DIALOGUE") return; // Eviter le double trigger
+
+            // Chercher un PNJ proche
+            for (let npc of npcs) {
+                if (npc.completed) continue;
+
+                let dist = Math.hypot(player.x - npc.x, player.y - npc.y);
+                if (dist < 60) {
+                    startDialogue(npc);
+                    return;
+                }
+            }
+        }
+
+        function startDialogue(npc) {
+            gameState = "DIALOGUE";
+            currentNpc = npc;
+            
+            document.getElementById('d-name').innerText = npc.name;
+            
+            // Effet machine à écrire
+            const textEl = document.getElementById('d-text');
+            textEl.innerText = "";
+            let i = 0;
+            const typeWriter = setInterval(() => {
+                textEl.innerText += npc.text.charAt(i);
+                i++;
+                if (i >= npc.text.length) {
+                    clearInterval(typeWriter);
+                    showOptions(npc);
+                }
+            }, 30);
+
+            document.getElementById('d-options').innerHTML = '';
+            document.getElementById('dialogue-box').classList.add('active');
+        }
+
+        function showOptions(npc) {
+            const optionsContainer = document.getElementById('d-options');
+            npc.options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.innerText = "► " + opt.text;
+                btn.onclick = () => makeChoice(npc, opt);
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        function makeChoice(npc, option) {
+            // Appliquer impact
+            state.perf += option.impact.perf;
+            state.mental += option.impact.mental;
+            state.lit += option.impact.lit;
+            state.gov += option.impact.gov;
+            updateGauges();
+
+            // Afficher la conséquence
+            document.getElementById('d-options').innerHTML = '';
+            document.getElementById('d-text').innerText = option.reply;
+            
+            const closeBtn = document.createElement('button');
+            closeBtn.innerText = "Quitter (Espace)";
+            closeBtn.onclick = () => endDialogue(npc);
+            document.getElementById('d-options').appendChild(closeBtn);
+
+            // Rendre le bouton quittable avec espace
+            const spaceListener = (e) => {
+                if(e.key === ' ') {
+                    window.removeEventListener('keydown', spaceListener);
+                    endDialogue(npc);
+                }
+            };
+            setTimeout(() => window.addEventListener('keydown', spaceListener), 100);
+        }
+
+        function endDialogue(npc) {
+            npc.completed = true;
+            npcElements[npc.id].querySelector('.npc-marker').style.display = 'none'; // Cacher le '!'
+            npcElements[npc.id].style.opacity = '0.5'; // Rendre le PNJ grisé
+            
+            document.getElementById('dialogue-box').classList.remove('active');
+            
+            // Wait slightly before returning to play
+            setTimeout(() => { gameState = "PLAYING"; }, 200);
+        }
+
+        // --- UPDATE DE L'UI ---
+        function updateGauges() {
+            const clamp = (val) => Math.max(0, Math.min(100, val));
+            state.perf = clamp(state.perf);
+            state.mental = clamp(state.mental);
+            state.lit = clamp(state.lit);
+            state.gov = clamp(state.gov);
+
+            document.getElementById('bar-perf').style.width = state.perf + '%';
+            document.getElementById('bar-mental').style.width = state.mental + '%';
+            document.getElementById('bar-lit').style.width = state.lit + '%';
+            document.getElementById('bar-gov').style.width = state.gov + '%';
+
+            // DYNAMIQUE DU DECOR
+            const isBadState = (state.perf <= 25 || state.mental <= 25 || state.gov <= 25 || state.lit <= 25);
+            if (isBadState) {
+                gameContainer.classList.add('bad-state');
+            } else {
+                gameContainer.classList.remove('bad-state');
+            }
+        }
+
+        // --- BOUCLE DE JEU ---
+        function gameLoop() {
+            updatePlayerPosition();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Démarrage
+        updateGauges();
+        gameLoop();
+
+    </script>
+</body>
+</html>
